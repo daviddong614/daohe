@@ -2,11 +2,7 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="default">
-    <meta name="theme-color" content="#3d5a80">
-    <link rel="manifest" href="manifest.json">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>道合 - 志同道合者的精神角落</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700&family=Noto+Sans+SC:wght@300;400;500;600&display=swap" rel="stylesheet">
@@ -4573,28 +4569,25 @@
             </div>
             
             <div class="login-card">
-                <!-- 步骤1：登录道合 -->
+                <!-- 昵称+密码登录/注册 -->
                 <div class="login-step active" id="step-phone">
-                    <h2 class="step-title">登录道合</h2>
-                    <p class="step-desc">手机号验证即可，简单直接</p>
+                    <h2 class="step-title">欢迎回来</h2>
+                    <p class="step-desc">新用户自动注册，老用户直接登录</p>
                     
                     <div class="login-form-group">
-                        <label class="login-label">手机号</label>
-                        <input type="tel" class="login-input" id="login-phone" placeholder="输入11位手机号" maxlength="11">
+                        <label class="login-label">昵称</label>
+                        <input type="text" class="login-input" id="login-nickname" placeholder="给自己起个响亮的名字" maxlength="20">
                     </div>
                     
                     <div class="login-form-group">
-                        <label class="login-label">验证码</label>
-                        <div class="login-input-row">
-                            <input type="text" class="login-input" id="login-code" placeholder="输入任意4位数字即可" maxlength="6">
-                            <button class="verify-btn" id="send-code-btn" onclick="sendVerifyCode()">发送验证码</button>
-                        </div>
+                        <label class="login-label">密码</label>
+                        <input type="password" class="login-input" id="login-password" placeholder="至少4位密码" maxlength="20">
                     </div>
                     
-                    <button class="login-btn" onclick="goToVerifyStep()">下一步</button>
+                    <button class="login-btn" onclick="handleLoginOrRegister()">进入道合</button>
                     
                     <button class="guest-entrance" onclick="enterAsGuest()">
-                        <span>👁️</span> 游客进入
+                        <span>👁️</span> 先逛逛
                     </button>
                 </div>
                 
@@ -5522,6 +5515,26 @@
                 <div class="corner-card-title">常驻板块</div>
                 <div id="profile-hobbies" style="display: flex; gap: 8px; flex-wrap: wrap;"></div>
             </div>
+            <div class="corner-card">
+                <div class="corner-card-title">账号管理</div>
+                <button class="logout-btn" onclick="logout()" style="
+                    width: 100%;
+                    padding: 12px 16px;
+                    background: #f5f5f5;
+                    border: 1px solid #e5e5e5;
+                    border-radius: 8px;
+                    color: #666;
+                    font-size: 14px;
+                    cursor: pointer;
+                    transition: all 0.3s;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    gap: 8px;
+                " onmouseover="this.style.background='#f0f0f0';this.style.color='#333';" onmouseout="this.style.background='#f5f5f5';this.style.color='#666';">
+                    🚪 退出登录
+                </button>
+            </div>
         </div>
     </div>
 
@@ -5553,19 +5566,230 @@
     <script>
         // 用户登录状态
         let isLoggedIn = false;
-        let isGuest = false;
+        let isGuest = true;  // 默认游客模式
         let userName = '';
         let userAvatar = '👨';
         let selectedHobbies = [];
         let userPostCount = 0;
         let userViolations = 0;
 
+        // localStorage 用户数据管理
+        const STORAGE_KEY = 'daohes_users';
+        const CURRENT_USER_KEY = 'daohes_current_user';
+
+        // 初始化：从localStorage加载用户数据
+        function initUserData() {
+            const storedUsers = localStorage.getItem(STORAGE_KEY);
+            const currentUser = localStorage.getItem(CURRENT_USER_KEY);
+            
+            if (currentUser && storedUsers) {
+                const users = JSON.parse(storedUsers);
+                if (users[currentUser]) {
+                    const userData = users[currentUser];
+                    isLoggedIn = true;
+                    isGuest = false;
+                    userName = currentUser;
+                    userAvatar = userData.avatar || '👨';
+                    selectedHobbies = userData.hobbies || [];
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        // 获取所有用户
+        function getAllUsers() {
+            const stored = localStorage.getItem(STORAGE_KEY);
+            return stored ? JSON.parse(stored) : {};
+        }
+
+        // 保存用户数据
+        function saveUsers(users) {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(users));
+        }
+
+        // 注册新用户
+        function registerUser(nickname, password) {
+            const users = getAllUsers();
+            users[nickname] = {
+                password: password,
+                avatar: '👨',
+                birthyear: '',
+                hobbies: [],
+                intro: '',
+                province: '',
+                createdAt: new Date().toISOString()
+            };
+            saveUsers(users);
+            localStorage.setItem(CURRENT_USER_KEY, nickname);
+            return users[nickname];
+        }
+
+        // 验证用户登录
+        function verifyUser(nickname, password) {
+            const users = getAllUsers();
+            if (users[nickname] && users[nickname].password === password) {
+                localStorage.setItem(CURRENT_USER_KEY, nickname);
+                return true;
+            }
+            return false;
+        }
+
+        // 检查昵称是否已存在
+        function checkNicknameExists(nickname) {
+            const users = getAllUsers();
+            return !!users[nickname];
+        }
+
+        // 更新当前用户数据
+        function updateCurrentUserData(data) {
+            const currentUser = localStorage.getItem(CURRENT_USER_KEY);
+            if (!currentUser) return false;
+            
+            const users = getAllUsers();
+            if (users[currentUser]) {
+                users[currentUser] = { ...users[currentUser], ...data };
+                saveUsers(users);
+                return true;
+            }
+            return false;
+        }
+
+        // 获取当前用户数据
+        function getCurrentUserData() {
+            const currentUser = localStorage.getItem(CURRENT_USER_KEY);
+            if (!currentUser) return null;
+            
+            const users = getAllUsers();
+            return users[currentUser] || null;
+        }
+
+        // 退出登录
+        function logout() {
+            localStorage.removeItem(CURRENT_USER_KEY);
+            isLoggedIn = false;
+            isGuest = true;
+            userName = '';
+            userAvatar = '👨';
+            selectedHobbies = [];
+            showToast('已退出登录');
+            
+            // 更新UI
+            updateLoggedInUI();
+            updateGuestUI();
+            
+            // 返回首页
+            showPage('home');
+        }
+
+        // 昵称+密码 登录/注册处理
+        function handleLoginOrRegister() {
+            const nickname = document.getElementById('login-nickname').value.trim();
+            const password = document.getElementById('login-password').value;
+            
+            if (!nickname) {
+                showToast('请输入昵称');
+                return;
+            }
+            
+            if (nickname.length < 2) {
+                showToast('昵称至少2个字符');
+                return;
+            }
+            
+            if (!password || password.length < 4) {
+                showToast('密码至少4位');
+                return;
+            }
+            
+            const exists = checkNicknameExists(nickname);
+            
+            if (exists) {
+                // 用户已存在，验证密码
+                if (verifyUser(nickname, password)) {
+                    // 登录成功
+                    const userData = getCurrentUserData();
+                    userName = nickname;
+                    userAvatar = userData.avatar || '👨';
+                    selectedHobbies = userData.hobbies || [];
+                    isLoggedIn = true;
+                    isGuest = false;
+                    
+                    document.getElementById('login-page').style.display = 'none';
+                    updateLoggedInUI();
+                    updateGuestUI();
+                    showToast(`欢迎回来，${userName}！`);
+                } else {
+                    showToast('密码错误');
+                }
+            } else {
+                // 新用户，自动注册
+                const newUser = registerUser(nickname, password);
+                userName = nickname;
+                userAvatar = newUser.avatar || '👨';
+                selectedHobbies = newUser.hobbies || [];
+                isLoggedIn = true;
+                isGuest = false;
+                
+                document.getElementById('login-page').style.display = 'none';
+                updateLoggedInUI();
+                updateGuestUI();
+                showToast(`注册成功，欢迎，${userName}！`);
+                
+                // 首次注册后弹出完善信息弹窗
+                setTimeout(() => {
+                    document.getElementById('profile-modal').classList.add('active');
+                    document.getElementById('profile-nickname').value = nickname;
+                    document.getElementById('profile-nickname').readOnly = true;
+                }, 500);
+            }
+        }
+
+        // 更新已登录状态UI
+        function updateLoggedInUI() {
+            const homeUserAvatar = document.getElementById('home-user-avatar');
+            const homeUserName = document.getElementById('home-user-name');
+            const homeUserDesc = document.getElementById('home-user-desc');
+            const verifyBtn = document.querySelector('.user-welcome-btn');
+            
+            if (isLoggedIn && !isGuest) {
+                if (homeUserAvatar) homeUserAvatar.textContent = userAvatar;
+                if (homeUserName) homeUserName.textContent = userName;
+                if (homeUserDesc) homeUserDesc.textContent = '志同道合，一路同行';
+                if (verifyBtn) verifyBtn.textContent = '我的 →';
+            }
+        }
+
         // 首页新功能相关变量
         let selectedHomeMood = null;
         let selectedAgeRange = null;
         let currentBroNickname = '';
 
-        // 励志金句数据
+        
+        // ==================== 应用初始化 ====================
+        
+        // 页面加载时初始化
+        function initApp() {
+            // 尝试从localStorage恢复登录状态
+            const hasSession = initUserData();
+            
+            if (hasSession) {
+                // 有已保存的会话，更新UI
+                updateLoggedInUI();
+                updateGuestUI();
+                console.log('已恢复会话:', userName);
+            } else {
+                // 没有会话，保持游客模式
+                updateGuestUI();
+            }
+        }
+
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            initApp();
+        });
+
+// 励志金句数据
         const goldenQuotes = [
             { text: '人到中年，才明白什么叫做责任，什么叫做担当。', footer: '— 致每一个扛起家的你' },
             { text: '有些路，走着走着就剩自己了。但回头看看，家人就在身后。', footer: '— 致每一个默默坚持的你' },
@@ -5763,73 +5987,36 @@
             { name: '钱老板', desc: '琢磨文玩', posts: 743 }
         ];
 
-        // 登录相关函数
-        function sendVerifyCode() {
-            const phone = document.getElementById('login-phone').value;
-            const btn = document.getElementById('send-code-btn');
-            
-            if (!phone || phone.length !== 11) {
-                showToast('请输入正确的手机号码');
-                return;
-            }
-            
-            btn.disabled = true;
-            btn.textContent = '发送中...';
-            
-            setTimeout(() => {
-                btn.textContent = '59秒后重试';
-                let seconds = 59;
-                const timer = setInterval(() => {
-                    seconds--;
-                    if (seconds <= 0) {
-                        clearInterval(timer);
-                        btn.disabled = false;
-                        btn.textContent = '重新发送';
-                    } else {
-                        btn.textContent = `${seconds}秒后重试`;
-                    }
-                }, 1000);
-                showToast('演示模式：输入任意4位数字即可');
-            }, 1000);
-        }
-
-        function goToVerifyStep() {
-            const phone = document.getElementById('login-phone').value;
-            const code = document.getElementById('login-code').value;
-            
-            if (!phone || phone.length !== 11) {
-                showToast('请输入正确的手机号码');
-                return;
-            }
-            if (!code || code.length < 4) {
-                showToast('请输入验证码');
-                return;
-            }
-            
-            userName = '道友';
-            showToast('验证成功 ✓');
-            setTimeout(() => {
-                goToProfileStep();
-            }, 800);
-        }
-
-        
-
-
         // 游客入口
         function enterAsGuest() {
             isGuest = true;
             document.getElementById('login-page').style.display = 'none';
             showToast('您已进入游客模式，可浏览但无法互动');
+            updateGuestUI();
         }
 
-        // 认证后跳转到基本信息填写
-        function goToProfileStep() {
-            // 关闭登录页，显示基本信息填写
-            document.getElementById('login-page').style.display = 'none';
-            document.getElementById('profile-modal').classList.add('active');
-            isLoggedIn = true;
+        // 处理认证按钮点击
+        function handleVerifyClick() {
+            if (isLoggedIn && !isGuest) {
+                // 已登录，跳转到个人角落
+                showPage('profile');
+            } else {
+                // 未登录或游客，打开登录页
+                document.getElementById('login-page').style.display = 'flex';
+            }
         }
+
+        // 检查登录状态，如果未登录则提示
+        function requireLogin() {
+            if (isGuest || !isLoggedIn) {
+                showToast('请先登录后再操作');
+                document.getElementById('login-page').style.display = 'flex';
+                return false;
+            }
+            return true;
+        }
+
+        // 关闭基本信息弹窗
 
         // 关闭基本信息弹窗
         function closeProfileModal() {
@@ -5855,9 +6042,9 @@
             userAvatar = el.dataset.avatar;
         }
 
-        // 完成注册
+        // 完成注册/完善资料
         function completeProfile() {
-            const nickname = document.getElementById('profile-nickname').value;
+            const nickname = document.getElementById('profile-nickname').value.trim();
             const birthYear = document.getElementById('profile-birthyear').value;
             const province = document.getElementById('profile-province').value;
             const bio = document.getElementById('profile-bio') ? document.getElementById('profile-bio').value : '';
@@ -5868,7 +6055,7 @@
             // 加个try-catch防止静默报错
             try {
 
-            if (!nickname.trim()) {
+            if (!nickname) {
                 showToast('请输入您的昵称');
                 return;
             }
@@ -5890,11 +6077,48 @@
                 return;
             }
 
+            // 获取选中的头像
+            const selectedAvatar = document.querySelector('.avatar-option.selected');
+            const selectedAvatarValue = selectedAvatar ? selectedAvatar.dataset.avatar : '👨';
+            
+            // 如果是已登录用户，更新localStorage
+            if (isLoggedIn && !isGuest) {
+                updateCurrentUserData({
+                    avatar: selectedAvatarValue,
+                    birthyear: birthYear,
+                    province: province,
+                    hobbies: selectedHobbies,
+                    intro: bio
+                });
+                userAvatar = selectedAvatarValue;
+            }
+            
+            // 如果是从登录页注册的新用户（昵称只读），先注册再保存资料
+            if (!isLoggedIn && !isGuest) {
+                // 检查是否是只读昵称（登录页注册的用户）
+                const nicknameInput = document.getElementById('profile-nickname');
+                if (nicknameInput && nicknameInput.readOnly) {
+                    // 昵称已注册，数据在localStorage中，直接更新
+                    updateCurrentUserData({
+                        avatar: selectedAvatarValue,
+                        birthyear: birthYear,
+                        province: province,
+                        hobbies: selectedHobbies,
+                        intro: bio
+                    });
+                    userAvatar = selectedAvatarValue;
+                }
+            }
+            
             userName = nickname;
-            userAvatar = document.querySelector('.avatar-option.selected')?.dataset.avatar || '👨';
             document.getElementById('profile-modal').classList.remove('active');
             document.getElementById('login-page').style.display = 'none';
             isLoggedIn = true;
+            isGuest = false;
+            
+            // 更新UI
+            updateLoggedInUI();
+            updateGuestUI();
             
             // 更新个人角落
             updateProfileCorner();
@@ -5904,7 +6128,13 @@
                 initFindBroPage();
             }
             
-            showToast(`欢迎，${userName}！`);
+            // 重置昵称输入框状态
+            const nicknameInput = document.getElementById('profile-nickname');
+            if (nicknameInput) {
+                nicknameInput.readOnly = false;
+            }
+            
+            showToast(`资料已保存，${userName}！`);
             } catch(e) { console.error('completeProfile error:', e); showToast('出错了：' + e.message); }
         }
 
@@ -5939,11 +6169,33 @@
         function updateGuestUI() {
             const guestBadge = document.getElementById('guest-badge');
             const loginGuideBar = document.getElementById('login-guide-bar');
+            
+            // 游客模式下显示提示
             if (guestBadge) {
                 guestBadge.style.display = isGuest ? 'flex' : 'none';
             }
             if (loginGuideBar) {
                 loginGuideBar.style.display = isGuest ? 'flex' : 'none';
+            }
+            
+            // 更新首页用户欢迎条
+            const homeUserAvatar = document.getElementById('home-user-avatar');
+            const homeUserName = document.getElementById('home-user-name');
+            const homeUserDesc = document.getElementById('home-user-desc');
+            const verifyBtn = document.querySelector('.user-welcome-btn');
+            
+            if (isLoggedIn && !isGuest && userName) {
+                // 已登录
+                if (homeUserAvatar) homeUserAvatar.textContent = userAvatar;
+                if (homeUserName) homeUserName.textContent = userName;
+                if (homeUserDesc) homeUserDesc.textContent = '志同道合，一路同行';
+                if (verifyBtn) verifyBtn.textContent = '我的 →';
+            } else if (isGuest) {
+                // 游客模式
+                if (homeUserAvatar) homeUserAvatar.textContent = '👤';
+                if (homeUserName) homeUserName.textContent = '游客';
+                if (homeUserDesc) homeUserDesc.textContent = '登录后可参与互动';
+                if (verifyBtn) verifyBtn.textContent = '立即认证 →';
             }
         }
 
@@ -6317,6 +6569,12 @@
 
         // 弹窗控制
         function openPostModal() {
+            // 检查登录状态
+            if (isGuest || !isLoggedIn) {
+                showToast('请先登录后再发帖');
+                document.getElementById('login-page').style.display = 'flex';
+                return;
+            }
             document.getElementById('post-modal').classList.add('active');
         }
 
@@ -6339,6 +6597,12 @@
 
         // 增强版树洞发布弹窗
         function openTreeholePostModal() {
+            // 检查登录状态
+            if (isGuest || !isLoggedIn) {
+                showToast('请先登录后再发帖');
+                document.getElementById('login-page').style.display = 'flex';
+                return;
+            }
             currentAnonymousName = generateAnonymousName();
             document.getElementById('anonymous-name').textContent = currentAnonymousName;
             document.getElementById('treehole-post-content').value = '';
@@ -6496,6 +6760,13 @@
         }
 
         function submitComment(postId) {
+            // 检查登录状态
+            if (isGuest || !isLoggedIn) {
+                showToast('请先登录后再评论');
+                document.getElementById('login-page').style.display = 'flex';
+                return;
+            }
+            
             const input = document.getElementById(`comment-input-${postId}`);
             if (input && input.value.trim()) {
                 // 检测敏感词
